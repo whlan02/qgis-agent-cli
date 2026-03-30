@@ -1,0 +1,9 @@
+[general]
+name=QGIS Agent WebSocket Server
+description=Local WebSocket server for controlling the current QGIS canvas via JSON commands.
+version=0.1.0
+qgisMinimumVersion=3.0
+author=QGIS Agent CLI
+email=
+about=
+
