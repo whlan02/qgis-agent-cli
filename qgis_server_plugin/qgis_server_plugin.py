@@ -146,6 +146,9 @@ class QgisServerPlugin:
     def add_vector_layer(self, path: str) -> Dict[str, Any]:
         return self._vector_layer_service.add_vector_layer(path)
 
+    def get_layers(self) -> Dict[str, Any]:
+        return self._vector_layer_service.get_layers()
+
     def export_map(self, output_path: str) -> Dict[str, Any]:
         return self._map_export_service.export_map(output_path)
 

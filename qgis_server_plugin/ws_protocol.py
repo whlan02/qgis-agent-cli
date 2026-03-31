@@ -35,6 +35,9 @@ def _validate_request(action: str, request: Dict[str, Any]) -> Optional[Dict[str
     if action == "ping":
         return None
 
+    if action == "get_layers":
+        return None
+
     return {"status": "error", "message": f"Unknown action: {action}"}
 
 def handle_request(

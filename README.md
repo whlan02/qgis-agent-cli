@@ -48,6 +48,7 @@ The following features are currently implemented:
 - **Vector layer loading**: `vector load --path <absolute path>`
 - **Buffer analysis**: `vector buffer --layer-name <layer name> --dist <distance>`
 - **Map export**: `project export --out-path <absolute output path>`
+- **List loaded layers**: `project layers`
 
 CLI output is standardized to JSON for easy parsing by scripts and automation tools.
 
@@ -138,6 +139,7 @@ Example commands:
 python -m qgis_client_cli vector load --path "D:\data\roads.shp"
 python -m qgis_client_cli vector buffer --layer-name "roads" --dist 100
 python -m qgis_client_cli project export --out-path "D:\output\map.png"
+python -m qgis_client_cli project layers
 ```
 
 ## FAQ

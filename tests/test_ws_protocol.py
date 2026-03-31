@@ -10,6 +10,7 @@ class TestWsProtocol(unittest.TestCase):
         self.assertIn("add_vector_layer", ACTION_HANDLERS)
         self.assertIn("buffer_layer", ACTION_HANDLERS)
         self.assertIn("export_map", ACTION_HANDLERS)
+        self.assertIn("get_layers", ACTION_HANDLERS)
 
     def test_invalid_json_returns_error(self):
         resp = ws_protocol.handle_request_text(
@@ -42,6 +43,21 @@ class TestWsProtocol(unittest.TestCase):
             handlers={"ping": ping_handler},
         )
         self.assertEqual({"status": "ok", "message": "pong"}, resp)
+
+    def test_get_layers_dispatch_to_handler(self):
+        def get_layers_handler(request, context, sock):
+            _ = context, sock
+            self.assertEqual("get_layers", request.get("action"))
+            return {"status": "ok", "message": "Layers listed", "layers": []}
+
+        resp = ws_protocol.handle_request(
+            {"action": "get_layers"},
+            context=object(),
+            sock=object(),
+            handlers={"get_layers": get_layers_handler},
+        )
+        self.assertEqual("ok", resp["status"])
+        self.assertEqual([], resp["layers"])
 
 
 if __name__ == "__main__":

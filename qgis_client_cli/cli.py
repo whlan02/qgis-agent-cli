@@ -112,3 +112,9 @@ def project_export(ctx: click.Context, out_path: str) -> None:
         payload={"output_path": abs_path},
     )
 
+
+@project.command(name="layers", help="List current layers loaded in QGIS.")
+@click.pass_context
+def project_layers(ctx: click.Context) -> None:
+    _execute_action(ctx=ctx, action="get_layers")
+

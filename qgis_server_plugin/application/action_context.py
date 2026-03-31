@@ -7,6 +7,9 @@ class ServerActionContext(Protocol):
     def add_vector_layer(self, path: str) -> Dict[str, Any]:
         ...
 
+    def get_layers(self) -> Dict[str, Any]:
+        ...
+
     def export_map(self, output_path: str) -> Dict[str, Any]:
         ...
 

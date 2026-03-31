@@ -38,3 +38,54 @@ class VectorLayerService:
 
         return {"success": True, "layer_id": layer_id, "layer_name": layer_name}
 
+    def get_layers(self) -> Dict[str, Any]:
+        try:
+            canvas = getattr(self._iface, "mapCanvas", None)
+            if not callable(canvas):
+                return {"success": False, "error": "QGIS map canvas is not available"}
+            layers = canvas().layers()
+        except Exception as e:
+            return {"success": False, "error": f"Failed to access map layers: {e}"}
+
+        result = []
+        for layer in layers or []:
+            layer_id: Optional[str] = None
+            layer_name = "unknown"
+            layer_type: Optional[str] = None
+            provider: Optional[str] = None
+
+            try:
+                if hasattr(layer, "id"):
+                    layer_id = layer.id()
+            except Exception:
+                layer_id = None
+
+            try:
+                if hasattr(layer, "name"):
+                    layer_name = layer.name()
+            except Exception:
+                layer_name = "unknown"
+
+            try:
+                if hasattr(layer, "type"):
+                    layer_type = str(layer.type())
+            except Exception:
+                layer_type = None
+
+            try:
+                if hasattr(layer, "providerType"):
+                    provider = layer.providerType()
+            except Exception:
+                provider = None
+
+            item: Dict[str, Any] = {"name": layer_name}
+            if layer_id is not None:
+                item["id"] = layer_id
+            if layer_type is not None:
+                item["type"] = layer_type
+            if provider:
+                item["provider"] = provider
+            result.append(item)
+
+        return {"success": True, "layers": result}
+
