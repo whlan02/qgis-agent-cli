@@ -1,49 +1,26 @@
 from __future__ import annotations
 
-import asyncio
-import json
 import os
-import time
 from typing import Any, Dict, Optional
 
 import click
 
-from .protocol import make_envelope, make_request
-from .ws_client import call_ws_json
+from .application import CommandRunner, print_envelope
 
 
-def _print_envelope(envelope: Dict[str, Any]) -> None:
-    # ensure_ascii=False keeps non-ascii paths readable for humans/logs.
-    click.echo(json.dumps(envelope, ensure_ascii=False))
-
-
-def _run_ws_call(*, ws_url: str, timeout_ms: int, request: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Synchronous wrapper around async WebSocket call.
-    """
-    # Each CLI invocation is one-shot; using asyncio.run keeps it simple.
-    return asyncio.run(call_ws_json(ws_url=ws_url, request=request, timeout_ms=timeout_ms))
-
-
-def _emit_ok_or_error(
+def _execute_action(
     *,
     ctx: click.Context,
     action: str,
-    request: Dict[str, Any],
-    response: Optional[Dict[str, Any]],
-    elapsed_ms: int,
-    error_message: Optional[str] = None,
+    payload: Optional[Dict[str, Any]] = None,
+    preflight_error: Optional[str] = None,
 ) -> None:
-    envelope = make_envelope(
-        action=action,
-        request=request,
-        response=response,
-        elapsed_ms=elapsed_ms,
-        status="error" if error_message else None,
-        message=error_message,
+    runner = CommandRunner(
+        ws_url=ctx.obj["ws_url"],
+        timeout_ms=ctx.obj["timeout_ms"],
     )
-    _print_envelope(envelope)
-
+    envelope = runner.execute(action=action, payload=payload, preflight_error=preflight_error)
+    print_envelope(envelope)
     if envelope.get("status") != "ok":
         ctx.exit(1)
 
@@ -81,30 +58,7 @@ def main(ctx: click.Context, ws_url: str, timeout: int, json_flag: bool) -> None
 @main.command(help="Test if WebSocket connection is alive (send ping to QGIS).")
 @click.pass_context
 def status(ctx: click.Context) -> None:
-    ws_url = ctx.obj["ws_url"]
-    timeout_ms = ctx.obj["timeout_ms"]
-
-    action = "ping"
-    request = make_request(action)
-
-    start = time.perf_counter()
-    response: Optional[Dict[str, Any]] = None
-    error_message: Optional[str] = None
-
-    try:
-        response = _run_ws_call(ws_url=ws_url, timeout_ms=timeout_ms, request=request)
-    except Exception as e:
-        error_message = f"WebSocket call failed: {e}"
-    elapsed_ms = int((time.perf_counter() - start) * 1000)
-
-    _emit_ok_or_error(
-        ctx=ctx,
-        action=action,
-        request=request,
-        response=response,
-        elapsed_ms=elapsed_ms,
-        error_message=error_message,
-    )
+    _execute_action(ctx=ctx, action="ping")
 
 
 @main.group(help="Vector layer related operations.")
@@ -116,48 +70,17 @@ def vector() -> None:
 @click.option("--path", "path_", required=True, type=str, help="Absolute path of vector data file.")
 @click.pass_context
 def vector_load(ctx: click.Context, path_: str) -> None:
-    ws_url = ctx.obj["ws_url"]
-    timeout_ms = ctx.obj["timeout_ms"]
-
     # Ensure request contains an absolute path (server assumes it).
     abs_path = os.path.abspath(path_)
-    action = "add_vector_layer"
-    request = make_request(action, path=abs_path)
-
-    if not os.path.isabs(path_):
-        # Still convert to absolute, but tell agents about normalization.
-        # (We keep it in message for future diagnostics.)
-        pass
-
+    preflight_error: Optional[str] = None
     if not os.path.exists(abs_path):
-        start = time.perf_counter()
-        elapsed_ms = int((time.perf_counter() - start) * 1000)
-        _emit_ok_or_error(
-            ctx=ctx,
-            action=action,
-            request=request,
-            response=None,
-            elapsed_ms=elapsed_ms,
-            error_message=f"Vector path does not exist: {abs_path}",
-        )
-        return
+        preflight_error = f"Vector path does not exist: {abs_path}"
 
-    start = time.perf_counter()
-    response: Optional[Dict[str, Any]] = None
-    error_message: Optional[str] = None
-    try:
-        response = _run_ws_call(ws_url=ws_url, timeout_ms=timeout_ms, request=request)
-    except Exception as e:
-        error_message = f"WebSocket call failed: {e}"
-    elapsed_ms = int((time.perf_counter() - start) * 1000)
-
-    _emit_ok_or_error(
+    _execute_action(
         ctx=ctx,
-        action=action,
-        request=request,
-        response=response,
-        elapsed_ms=elapsed_ms,
-        error_message=error_message,
+        action="add_vector_layer",
+        payload={"path": abs_path},
+        preflight_error=preflight_error,
     )
 
 
@@ -166,28 +89,10 @@ def vector_load(ctx: click.Context, path_: str) -> None:
 @click.option("--dist", required=True, type=float, help="Buffer distance (float).")
 @click.pass_context
 def vector_buffer(ctx: click.Context, layer_name: str, dist: float) -> None:
-    ws_url = ctx.obj["ws_url"]
-    timeout_ms = ctx.obj["timeout_ms"]
-
-    action = "buffer_layer"
-    request = make_request(action, layer_name=layer_name, distance=float(dist))
-
-    start = time.perf_counter()
-    response: Optional[Dict[str, Any]] = None
-    error_message: Optional[str] = None
-    try:
-        response = _run_ws_call(ws_url=ws_url, timeout_ms=timeout_ms, request=request)
-    except Exception as e:
-        error_message = f"WebSocket call failed: {e}"
-    elapsed_ms = int((time.perf_counter() - start) * 1000)
-
-    _emit_ok_or_error(
+    _execute_action(
         ctx=ctx,
-        action=action,
-        request=request,
-        response=response,
-        elapsed_ms=elapsed_ms,
-        error_message=error_message,
+        action="buffer_layer",
+        payload={"layer_name": layer_name, "distance": float(dist)},
     )
 
 
@@ -200,28 +105,10 @@ def project() -> None:
 @click.option("--out-path", required=True, type=str, help="Absolute output path for exported image (e.g. C:\\\\out\\\\map.png).")
 @click.pass_context
 def project_export(ctx: click.Context, out_path: str) -> None:
-    ws_url = ctx.obj["ws_url"]
-    timeout_ms = ctx.obj["timeout_ms"]
-
     abs_path = os.path.abspath(out_path)
-    action = "export_map"
-    request = make_request(action, output_path=abs_path)
-
-    start = time.perf_counter()
-    response: Optional[Dict[str, Any]] = None
-    error_message: Optional[str] = None
-    try:
-        response = _run_ws_call(ws_url=ws_url, timeout_ms=timeout_ms, request=request)
-    except Exception as e:
-        error_message = f"WebSocket call failed: {e}"
-    elapsed_ms = int((time.perf_counter() - start) * 1000)
-
-    _emit_ok_or_error(
+    _execute_action(
         ctx=ctx,
-        action=action,
-        request=request,
-        response=response,
-        elapsed_ms=elapsed_ms,
-        error_message=error_message,
+        action="export_map",
+        payload={"output_path": abs_path},
     )
 
