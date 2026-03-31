@@ -32,10 +32,13 @@ The system adopts a **Client / Server (on the same machine)** architecture:
 Core modules:
 
 - `qgis_client_cli/cli.py`: Command definitions and argument parsing (Click).
-- `qgis_client_cli/ws_client.py`: Sending WebSocket requests and receiving responses.
-- `qgis_client_cli/protocol.py`: Envelope packaging for request/response.
-- `qgis_server_plugin/qgis_server_plugin.py`: Plugin lifecycle, WS service, QGIS call implementation.
-- `qgis_server_plugin/ws_protocol.py`: Request action routing and basic validation (decoupled from QGIS).
+- `qgis_client_cli/application/command_runner.py`: Action execution flow (request -> WS -> envelope).
+- `qgis_client_cli/ws_client.py`: WebSocket transport client.
+- `qgis_client_cli/protocol.py`: Envelope and request structure helpers.
+- `qgis_server_plugin/qgis_server_plugin.py`: Plugin lifecycle, WS service, and dependency wiring.
+- `qgis_server_plugin/ws_protocol.py`: Request parsing + validation + dispatch entry.
+- `qgis_server_plugin/application/actions/*`: Action-level orchestration (one feature per file).
+- `qgis_server_plugin/infrastructure/qgis/*`: Concrete QGIS implementation details.
 
 ## Existing Features
 
@@ -155,14 +158,15 @@ python -m qgis_client_cli project export --out-path "D:\output\map.png"
 
 How to add a new feature (action), and how to validate it.
 
-### 1) Add a feature (3 steps)
+### 1) Add a feature (4 steps)
 
 1. Create a new action file in the correct domain folder:  
    `qgis_server_plugin/application/actions/<domain>/xxx_action.py`
 2. Add only these two required parts:  
    - `ACTION_NAME = "xxx"`  
    - `def handle(request, context, sock): ...`
-3. Add a CLI command in `qgis_client_cli/cli.py`, then call `_execute_action(action="xxx", payload=...)`.
+3. Add request validation for the new action in `qgis_server_plugin/ws_protocol.py` (`_validate_request`).
+4. Add a CLI command in `qgis_client_cli/cli.py`, then call `_execute_action(action="xxx", payload=...)`.
 
 Note: actions are auto-discovered. You do not need to edit the dispatcher manually.
 
